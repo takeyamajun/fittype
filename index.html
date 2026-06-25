@@ -3,157 +3,297 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>フィジカルMBTI診断</title>
+    <title>個別運動処方システム | フィジカルMBTI診断</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: { sans: ['"Noto Sans JP"', 'sans-serif'] },
+                    fontFamily: { 
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                        mono: ['"Roboto Mono"', 'monospace']
+                    },
                     colors: {
-                        primary: '#0ea5e9', // 爽やかなフィットネスブルー
-                        primaryDark: '#0284c7',
-                        secondary: '#f3f4f6'
+                        primary: '#2563eb', // ブルー系でプロフェッショナルな印象
+                        primaryDark: '#1d4ed8',
+                        accent: '#f59e0b',
+                        surface: '#f8fafc'
                     }
                 }
             }
         }
     </script>
     <style>
-        /* スムーズな画面遷移のためのアニメーション */
-        .fade-enter { opacity: 0; transform: translateY(10px); }
-        .fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
-        .fade-exit { opacity: 1; transform: translateY(0); }
-        .fade-exit-active { opacity: 0; transform: translateY(-10px); transition: opacity 0.3s ease-in, transform 0.3s ease-in; }
+        /* 全体・トランジション設定 */
+        body { background-color: #e2e8f0; }
+        .fade-enter { opacity: 0; transform: translateY(20px) scale(0.98); }
+        .fade-enter-active { opacity: 1; transform: translateY(0) scale(1); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .fade-exit-active { opacity: 0; transform: translateY(-20px) scale(0.98); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
         /* 選択ボタンのホバーエフェクト */
-        .choice-btn { transition: all 0.2s ease-in-out; }
-        .choice-btn:hover { transform: scale(1.02); border-color: #0ea5e9; background-color: #f0f9ff; }
+        .choice-btn { transition: all 0.2s ease; border: 2px solid transparent; }
+        .choice-btn:hover { border-color: #2563eb; background-color: #eff6ff; transform: translateX(5px); }
+        
+        /* 処方箋デザイン用 */
+        .prescription-paper {
+            background: #fff;
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
+        }
+        .stamp {
+            display: inline-block;
+            padding: 0.25rem 1rem;
+            border: 3px solid #ef4444;
+            color: #ef4444;
+            font-weight: 900;
+            font-size: 1.25rem;
+            border-radius: 0.5rem;
+            transform: rotate(-15deg);
+            opacity: 0;
+            animation: stampAnim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.5s forwards;
+        }
+        @keyframes stampAnim {
+            0% { opacity: 0; transform: scale(2) rotate(-15deg); }
+            100% { opacity: 0.8; transform: scale(1) rotate(-15deg); }
+        }
+        /* 鼓動アニメーション（届いた時の封筒など） */
+        .pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .8; transform: scale(1.05); } }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen w-full flex items-center justify-center sm:p-4 text-gray-800">
 
-    <div id="app" class="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden relative min-h-[500px] flex flex-col">
+    <div id="app" class="w-full h-screen sm:h-auto sm:min-h-[90vh] max-w-5xl bg-white sm:rounded-3xl shadow-2xl flex flex-col relative overflow-hidden">
         
-        <div id="header" class="hidden w-full bg-gray-200 h-1.5 absolute top-0 left-0">
-            <div id="progress-bar" class="bg-primary h-1.5 transition-all duration-300 w-0"></div>
+        <div id="progress-container" class="hidden w-full bg-gray-100 h-2 absolute top-0 left-0 z-10">
+            <div id="progress-bar" class="bg-primary h-2 transition-all duration-500 w-0"></div>
         </div>
 
-        <div id="content" class="p-6 md:p-8 flex-1 flex flex-col justify-center">
+        <div id="content" class="flex-1 flex flex-col w-full h-full p-6 md:p-12 overflow-y-auto overflow-x-hidden">
             </div>
 
     </div>
 
     <script>
         // --- データ定義 ---
-        const questions = [
-            // 軸1: ボディ (筋骨格)
-            { text: "スーパーの重い買い物袋や、水・お米などを運ぶ作業は、あまり苦にならない。", axis: "body" },
-            { text: "少しの段差から飛び降りたり、小走りで踏み込んだりした際、足腰や関節に不安を感じない。", axis: "body" },
-            { text: "階段を上る際、手すりに頼らなくても、足にしっかりとした力強さを感じる。", axis: "body" },
-            { text: "日常的に乳製品や小魚・大豆製品をよく食べ、外に出て日光を浴びる習慣がある。", axis: "body" },
-            // 軸2: スタミナ (心肺)
-            { text: "少し早歩きで10分以上歩き続けても、会話ができるくらい息に余裕がある。", axis: "stamina" },
-            { text: "エスカレーターやエレベーターがあっても、意識して階段を使うことが多い。", axis: "stamina" },
-            { text: "急ぎ足や階段などで少し息が上がっても、立ち止まって休めばすぐに呼吸が整う。", axis: "stamina" },
-            { text: "休日は家でじっと休んでいるよりも、外出して動き回っている方が1日を元気に過ごせる。", axis: "stamina" },
-            // 軸3: マインド (認知)
-            { text: "「あれ、何だっけ？」と言葉に詰まることは少なく、昨日の食事や最近の出来事をすぐに思い出せる。", axis: "mind" },
-            { text: "料理をしながら片付けをするなど、2つ以上の作業を同時に進行するのが得意だ。", axis: "mind" },
-            { text: "朝起きたとき、頭にモヤモヤした感覚はなく、スッキリとすぐに1日の活動を開始できる。", axis: "mind" },
-            { text: "新しいルールのゲームをしたり、スマホの新しい使い方を覚えたりすることに抵抗がない。", axis: "mind" }
-        ];
-
-        const resultsData = {
-            "HAC": { title: "トライアスリート", subtitle: "文武両道を地で行く、タフで聡明な完全無欠タイプ", desc: "筋肉・骨・スタミナのすべてが揃い、頭脳も明晰。どんなハードな状況にも対応できる、まさに「鉄人」です。", rx: "高強度のトレーニングや、新しいスポーツへの挑戦など、攻めのフィットネスメニュー。" },
-            "HAN": { title: "ラグビーフォワード", subtitle: "スタミナとパワーで突き進む、タフで豪快な切り込み隊長", desc: "体力と突進力は群を抜いていますが、細かいことは気にしないおっとり・のんびりした気質を持ち合わせています。", rx: "複雑なステップ運動や脳トレ要素を掛け合わせた、飽きずに楽しめるアクティビティ。" },
-            "HRC": { title: "スプリンター", subtitle: "一瞬の爆発力と鋭い戦術で魅せる、短期集中パワー型", desc: "筋肉の出力が高く頭の回転も速いですが、持久力（スタミナ）は長続きしにくいため、短時間で勝負をかけるタイプです。", rx: "長時間のランニングよりも、短時間のインターバルトレーニングやウエイトスタディ。" },
-            "HRN": { title: "ウエイトリフター", subtitle: "どっしりとした安定感、無理せず一撃にかける省エネパワー", desc: "骨格や筋力は頑丈ですが、ゼーゼー息が上がるような運動は苦手。普段は穏やかでマイペースな省エネモードです。", rx: "激しい運動は避け、ラジオ体操や散歩など、まずは身体をじんわり温める習慣から。" },
-            "SAC": { title: "ミッドフィルダー", subtitle: "身軽な体と抜群のスタミナで、スマートに立ち回る司令塔", desc: "体型は華奢ですが、スタミナが抜群にあり、広い視野とフットワークの軽さでゲームを支配するタイプです。", rx: "自重スクワットなどの筋力・骨量を補うトレーニングを取り入れ、身体の土台を強化。" },
-            "SAN": { title: "ダンサー", subtitle: "フットワークは軽く動き回る、リズム感抜群のリフレッシュ派", desc: "筋力は控えめですが、スタミナがあり動くことが大好き。音楽や楽しさに合わせてのびのびと身体を動かすのが得意です。", rx: "音楽に合わせたダンスやヨガなど、リフレッシュと体力維持を両立できる運動。" },
-            "SRC": { title: "ゴルファー", subtitle: "体力勝負は避けて勝つ、緻密な計算と集中力の精密機械", desc: "筋力やスタミナに頼るより、冷静な分析力と高い集中力で効率よく身体をコントロールする知性派です。", rx: "隙間時間のリフレッシュストレッチや、効率を重視した「1回5分のプチ筋トレ」。" },
-            "SRN": { title: "ウォーカー", subtitle: "自分の心地よさを最優先にする、無理のない脱力系ビギナー", desc: "激しいスポーツや筋トレは苦手。お散歩感覚でゆったり心地よく身体を動かすのが一番合っているマイペース派です。", rx: "まずは「運動」と構えず、湯船に浸かる、ストレッチをするなど、超低負荷な習慣からスタート。" }
-        };
-
-        // --- 状態管理 ---
+        let userProfile = { age: '', gender: '', height: '', weight: '', habit: '' };
         let currentQuestion = 0;
         let scores = { body: 0, stamina: 0, mind: 0 };
 
+        const questions = [
+            { text: "重い買い物袋や荷物を運ぶ作業は、あまり苦にならない。", axis: "body", desc: "日常の筋力・パワー" },
+            { text: "少しの段差から飛び降りたり、小走りで踏み込んだりしても、足腰に不安はない。", axis: "body", desc: "骨格・関節の安定性" },
+            { text: "階段を上る際、手すりに頼らなくても足にしっかりとした力強さを感じる。", axis: "body", desc: "下半身の出力" },
+            { text: "乳製品や小魚・大豆をよく食べ、外に出て日光を浴びる習慣がある。", axis: "body", desc: "骨密度の関連習慣" },
+            { text: "早歩きで10分以上歩き続けても、会話ができるくらい息に余裕がある。", axis: "stamina", desc: "有酸素運動の耐性" },
+            { text: "エスカレーターがあっても、意識して階段を使うことが多い。", axis: "stamina", desc: "日常の活動量" },
+            { text: "少し息が上がっても、立ち止まって休めばすぐに呼吸が整う。", axis: "stamina", desc: "心肺機能の回復力" },
+            { text: "休日は家でじっと休むより、外出して動き回っている方が元気に過ごせる。", axis: "stamina", desc: "スタミナの自覚" },
+            { text: "「あれ、何だっけ？」と言葉に詰まることは少なく、すぐ思い出せる。", axis: "mind", desc: "短期記憶・想起" },
+            { text: "料理をしながら片付けをするなど、2つの作業を同時進行するのが得意だ。", axis: "mind", desc: "マルチタスク" },
+            { text: "朝起きたとき頭にモヤモヤ感はなく、スッキリと活動を開始できる。", axis: "mind", desc: "脳の疲労回復" },
+            { text: "新しいゲームのルールや、スマホの新しい使い方を覚えることに抵抗がない。", axis: "mind", desc: "学習意欲と適応力" }
+        ];
+
+        // 処方箋の詳細データ（1週間メニューなど）
+        const resultsData = {
+            "HAC": { title: "トライアスリート", subtitle: "文武両道、タフで聡明な完全無欠タイプ",
+                feature: "筋肉・骨・スタミナのすべてが揃い、頭脳も明晰。ハードな状況にも対応できる「鉄人」です。",
+                menu: { mon: "高強度インターバル(HIIT)", tue: "アクティブレスト(ヨガ)", wed: "ウェイトトレーニング", thu: "休息日", fri: "新しいスポーツに挑戦", sat: "長距離ランニング", sun: "全身ストレッチ" },
+                advice: "現状の身体能力は非常に高いレベルにあります。更なる向上のため、使ったことのない筋肉を刺激する新しい競技への挑戦をおすすめします。"
+            },
+            "HAN": { title: "ラグビーフォワード", subtitle: "スタミナとパワーで突き進む切り込み隊長",
+                feature: "体力と突進力は群を抜いていますが、細かいことは気にしないおおらかな気質を持ちます。",
+                menu: { mon: "有酸素運動(ジョギング)", tue: "筋力トレーニング(体幹)", wed: "休息日", thu: "ステップ運動/エアロビ", fri: "アクティブレスト", sat: "チームスポーツ参加", sun: "脳トレ＋軽い散歩" },
+                advice: "身体のタフさは素晴らしいですが、脳の疲労感に気づきにくい傾向があります。複雑な動きを伴う運動で脳に心地よい刺激を与えましょう。"
+            },
+            "HRC": { title: "スプリンター", subtitle: "一瞬の爆発力と鋭い戦術で魅せるパワー型",
+                feature: "筋肉の出力が高く頭の回転も速いですが、持久力は長続きしにくい短期集中タイプです。",
+                menu: { mon: "ダッシュ＆ウォーク", tue: "上半身ウェイト", wed: "完全休息日", thu: "下半身ウェイト", fri: "短時間スイミング", sat: "趣味のアクティビティ", sun: "入念なストレッチ" },
+                advice: "長時間のダラダラとした運動はストレスになります。「短時間で追い込み、しっかり休む」というメリハリのついたサイクルが最適です。"
+            },
+            "HRN": { title: "ウエイトリフター", subtitle: "無理せず一撃にかける省エネパワー",
+                feature: "骨格や筋力は頑丈ですが、息が上がる運動は苦手。普段は穏やかな省エネモードです。",
+                menu: { mon: "自体重スクワット", tue: "軽いウォーキング", wed: "休息日", thu: "タオルストレッチ", fri: "ラジオ体操", sat: "軽めの筋力トレ", sun: "リラックスヨガ" },
+                advice: "基礎的な力は十分に備わっています。まずは心肺機能に負担をかけすぎない、ゆっくりとしたペースの全身運動から習慣化しましょう。"
+            },
+            "SAC": { title: "ミッドフィルダー", subtitle: "抜群のスタミナでスマートに立ち回る司令塔",
+                feature: "体型は華奢ですがスタミナが抜群にあり、広い視野とフットワークの軽さが持ち味です。",
+                menu: { mon: "プッシュアップ＆腹筋", tue: "ロングジョギング", wed: "アクティブレスト", thu: "下半身強化(ランジ)", fri: "サイクリング", sat: "体幹トレーニング", sun: "休息・マッサージ" },
+                advice: "持久力と頭の回転の速さは完璧です。怪我を防ぐため、筋肉量と骨密度を高める「抗重力トレーニング」を多めに取り入れましょう。"
+            },
+            "SAN": { title: "ダンサー", subtitle: "リズム感抜群、楽しく動き回るリフレッシュ派",
+                feature: "筋力は控えめですが、スタミナがあり動くのが大好き。のびのびと身体を動かすのが得意です。",
+                menu: { mon: "ダンス・エアロビクス", tue: "ウォーキング", wed: "休息日", thu: "音楽に合わせて家事", fri: "ピラティス", sat: "ハイキング", sun: "ゆっくり入浴・柔軟" },
+                advice: "「辛いトレーニング」よりも「楽しいアクティビティ」が向いています。音楽を取り入れ、モチベーションを維持しながら基礎体力を養いましょう。"
+            },
+            "SRC": { title: "ゴルファー", subtitle: "緻密な計算と集中力で勝負する精密機械",
+                feature: "体力勝負より、冷静な分析力と高い集中力で効率よく身体をコントロールする知性派です。",
+                menu: { mon: "デスクワーク合間ストレッチ", tue: "1回5分のプチ筋トレ", wed: "姿勢改善エクササイズ", thu: "休息日", fri: "ウォーキング", sat: "バランスボール", sun: "マインドフルネス瞑想" },
+                advice: "頭脳労働による首や肩の緊張が懸念されます。激しい運動ではなく、姿勢を正し、血流を改善するためのこまめなストレッチが処方箋となります。"
+            },
+            "SRN": { title: "ウォーカー", subtitle: "心地よさを最優先する無理のない脱力系",
+                feature: "激しいスポーツは苦手。お散歩感覚でゆったり心地よく身体を動かすのが合っているマイペース派。",
+                menu: { mon: "深呼吸と朝ののび", tue: "近所を10分お散歩", wed: "休息日", thu: "湯船にゆっくり浸かる", fri: "寝る前の軽い柔軟", sat: "お出かけ（買い物等）", sun: "完全リラックス" },
+                advice: "今は「運動」と構える必要はありません。まずは日常生活の中で「少し歩く」「深く呼吸する」といった超低負荷な習慣から身体を慣らしましょう。"
+            }
+        };
+
         const contentDiv = document.getElementById('content');
-        const headerDiv = document.getElementById('header');
+        const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
 
-        // --- 画面遷移ロジック ---
-        function transitionContent(newHTML, callback) {
+        // --- 描画ユーティリティ ---
+        function render(html, callback) {
             contentDiv.classList.add('fade-exit-active');
             setTimeout(() => {
-                contentDiv.innerHTML = newHTML;
+                contentDiv.innerHTML = html;
                 contentDiv.classList.remove('fade-exit-active');
                 contentDiv.classList.add('fade-enter-active');
                 if(callback) callback();
-                setTimeout(() => {
-                    contentDiv.classList.remove('fade-enter-active');
-                }, 400);
-            }, 300);
+                setTimeout(() => { contentDiv.classList.remove('fade-enter-active'); }, 500);
+            }, 400);
         }
 
-        // --- スタート画面 ---
+        // --- 1. スタート画面 ---
         function renderStart() {
-            headerDiv.classList.add('hidden');
+            progressContainer.classList.add('hidden');
             const html = `
-                <div class="text-center">
-                    <p class="text-sm text-primary font-bold tracking-widest mb-2">フィジカル × マインド</p>
-                    <h1 class="text-3xl font-black text-gray-900 mb-4 leading-tight">フィジカルMBTI<br>診断</h1>
-                    <p class="text-gray-500 mb-8 text-sm leading-relaxed">12個の質問から、あなたの「筋骨格・心肺・認知機能」を分析し、8つのタイプに分類します。あなたにぴったりの運動処方箋を見つけましょう！</p>
-                    <button onclick="startQuiz()" class="w-full bg-primary hover:bg-primaryDark text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg">
-                        診断をスタート
+                <div class="m-auto text-center max-w-2xl">
+                    <span class="inline-block py-1 px-3 rounded-full bg-blue-100 text-primary text-sm font-bold tracking-widest mb-6">PHYSICAL & MIND ANALYSIS</span>
+                    <h1 class="text-4xl md:text-6xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
+                        フィジカルMBTI<br><span class="text-primary">個別運動処方</span>システム
+                    </h1>
+                    <p class="text-gray-500 mb-10 md:text-lg leading-relaxed">
+                        12個の質問と基本情報から、あなたの「筋骨格・心肺・認知機能」を分析。<br class="hidden md:block">
+                        8つのタイプ分類に基づく、<b>あなただけの詳細な運動処方箋</b>を即座に発行します。
+                    </p>
+                    <button onclick="renderProfile()" class="group relative inline-flex items-center justify-center w-full md:w-auto px-12 py-5 text-lg font-bold text-white transition-all duration-200 bg-primary rounded-full hover:bg-primaryDark hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                        分析をはじめる
+                        <svg class="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                     </button>
                 </div>
             `;
-            transitionContent(html);
+            render(html);
         }
 
-        // --- クイズ画面 ---
-        function startQuiz() {
+        // --- 2. プロフィール入力画面 ---
+        function renderProfile() {
+            const html = `
+                <div class="m-auto w-full max-w-xl">
+                    <div class="mb-8 text-center">
+                        <h2 class="text-2xl font-bold text-gray-900">基本情報の入力</h2>
+                        <p class="text-gray-500 text-sm mt-2">より正確な処方箋を発行するために使用します。</p>
+                    </div>
+                    <form id="profileForm" onsubmit="submitProfile(event)" class="space-y-6 bg-surface p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">年齢</label>
+                                <div class="relative">
+                                    <input type="number" id="p_age" required min="10" max="120" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-lg" placeholder="例: 30">
+                                    <span class="absolute right-4 top-3.5 text-gray-400">歳</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">性別</label>
+                                <select id="p_gender" required class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-lg bg-white">
+                                    <option value="">選択...</option>
+                                    <option value="男性">男性</option>
+                                    <option value="女性">女性</option>
+                                    <option value="その他">その他/回答しない</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">身長</label>
+                                <div class="relative">
+                                    <input type="number" id="p_height" required min="100" max="250" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-lg" placeholder="例: 170">
+                                    <span class="absolute right-4 top-3.5 text-gray-400">cm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">体重</label>
+                                <div class="relative">
+                                    <input type="number" id="p_weight" required min="30" max="200" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-lg" placeholder="例: 65">
+                                    <span class="absolute right-4 top-3.5 text-gray-400">kg</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">現在の運動習慣</label>
+                            <select id="p_habit" required class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-lg bg-white">
+                                <option value="">選択してください</option>
+                                <option value="全くなし">全くなし</option>
+                                <option value="週1〜2回">週1〜2回程度</option>
+                                <option value="週3回以上">週3回以上</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-gray-900 hover:bg-black text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg mt-4">
+                            診断へ進む
+                        </button>
+                    </form>
+                </div>
+            `;
+            render(html);
+        }
+
+        function submitProfile(e) {
+            e.preventDefault();
+            userProfile.age = document.getElementById('p_age').value;
+            userProfile.gender = document.getElementById('p_gender').value;
+            userProfile.height = document.getElementById('p_height').value;
+            userProfile.weight = document.getElementById('p_weight').value;
+            userProfile.habit = document.getElementById('p_habit').value;
+            
+            // 診断スタート
             currentQuestion = 0;
             scores = { body: 0, stamina: 0, mind: 0 };
-            headerDiv.classList.remove('hidden');
+            progressContainer.classList.remove('hidden');
             renderQuestion();
         }
 
+        // --- 3. クイズ画面 ---
         function renderQuestion() {
             const q = questions[currentQuestion];
             const progress = ((currentQuestion) / questions.length) * 100;
             progressBar.style.width = `${progress}%`;
 
             const html = `
-                <div>
-                    <p class="text-sm text-primary font-bold mb-2">Q${currentQuestion + 1} / ${questions.length}</p>
-                    <h2 class="text-xl font-bold text-gray-800 mb-6 leading-relaxed">${q.text}</h2>
+                <div class="m-auto w-full max-w-2xl flex flex-col justify-center min-h-[50vh]">
+                    <div class="mb-8">
+                        <div class="flex justify-between items-end mb-4">
+                            <span class="text-primary font-black text-2xl">Q${currentQuestion + 1}<span class="text-gray-400 text-lg"> / ${questions.length}</span></span>
+                            <span class="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">${q.desc}</span>
+                        </div>
+                        <h2 class="text-2xl md:text-3xl font-bold text-gray-800 leading-relaxed">${q.text}</h2>
+                    </div>
+                    
                     <div class="space-y-3">
-                        ${[5, 4, 3, 2, 1].map(val => `
-                            <button onclick="answerQuestion(${val}, '${q.axis}')" class="choice-btn w-full text-left px-5 py-4 border border-gray-200 rounded-xl text-gray-700 font-medium bg-white shadow-sm flex items-center justify-between">
-                                <span>${getAnswerText(val)}</span>
-                                <span class="text-gray-300 text-xs">${val}点</span>
+                        ${[
+                            {val: 5, text: "非常に当てはまる", color: "bg-blue-50"},
+                            {val: 4, text: "やや当てはまる", color: "bg-white"},
+                            {val: 3, text: "どちらともいえない", color: "bg-white"},
+                            {val: 2, text: "あまり当てはまらない", color: "bg-white"},
+                            {val: 1, text: "全く当てはまらない", color: "bg-gray-50"}
+                        ].map(opt => `
+                            <button onclick="answerQuestion(${opt.val}, '${q.axis}')" class="choice-btn w-full text-left px-6 py-5 rounded-2xl text-gray-700 font-bold ${opt.color} shadow-sm flex items-center justify-between text-lg border border-gray-200">
+                                <span>${opt.text}</span>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center group-hover:border-primary group-hover:bg-primary transition-colors"></div>
                             </button>
                         `).join('')}
                     </div>
                 </div>
             `;
-            transitionContent(html);
-        }
-
-        function getAnswerText(val) {
-            switch(val) {
-                case 5: return "非常に当てはまる";
-                case 4: return "やや当てはまる";
-                case 3: return "どちらともいえない";
-                case 2: return "あまり当てはまらない";
-                case 1: return "全く当てはまらない";
-            }
+            render(html);
         }
 
         function answerQuestion(val, axis) {
@@ -163,51 +303,135 @@
                 renderQuestion();
             } else {
                 progressBar.style.width = '100%';
-                setTimeout(calculateResult, 400); // プログレスバーが満ちるのを待つ
+                renderLoading();
             }
         }
 
-        // --- 結果計算・表示画面 ---
+        // --- 4. ロード＆到着演出画面 ---
+        function renderLoading() {
+            progressContainer.classList.add('hidden');
+            const html = `
+                <div class="m-auto text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mb-6"></div>
+                    <h2 id="loadingText" class="text-2xl font-bold text-gray-800">データを解析中...</h2>
+                    <p class="text-gray-500 mt-2">12項目のデータからフィジカルタイプを判定しています</p>
+                </div>
+            `;
+            render(html, () => {
+                // 文字を切り替える演出
+                setTimeout(() => { document.getElementById('loadingText').innerText = "個別メニューを生成中..."; }, 1200);
+                setTimeout(() => { document.getElementById('loadingText').innerText = "処方箋を発行中..."; }, 2400);
+                setTimeout(renderDelivery, 3600);
+            });
+        }
+
+        function renderDelivery() {
+            const html = `
+                <div class="m-auto text-center">
+                    <div class="text-7xl mb-6 pulse-slow cursor-pointer" onclick="calculateResult()">💌</div>
+                    <h2 class="text-3xl font-black text-gray-900 mb-4">処方箋が届きました！</h2>
+                    <p class="text-gray-500 mb-8">AIによる分析が完了し、あなた専用の<br>運動処方箋が完成しました。</p>
+                    <button onclick="calculateResult()" class="px-10 py-4 bg-primary text-white font-bold rounded-full text-lg shadow-lg hover:bg-primaryDark hover:scale-105 transition-all">
+                        処方箋を開封する
+                    </button>
+                </div>
+            `;
+            render(html);
+        }
+
+        // --- 5. 結果（処方箋）画面 ---
         function calculateResult() {
-            // 各軸4問 (満点20点)。12点以上を上位特性とする。
             const bodyType = scores.body >= 12 ? 'H' : 'S';
             const staminaType = scores.stamina >= 12 ? 'A' : 'R';
             const mindType = scores.mind >= 12 ? 'C' : 'N';
             
             const resultKey = `${bodyType}${staminaType}${mindType}`;
-            renderResult(resultKey);
+            renderPrescription(resultKey);
         }
 
-        function renderResult(key) {
-            headerDiv.classList.add('hidden');
+        function renderPrescription(key) {
             const data = resultsData[key];
+            
+            // BMI計算
+            const heightM = userProfile.height / 100;
+            const bmi = (userProfile.weight / (heightM * heightM)).toFixed(1);
+            const dateStr = new Date().toLocaleDateString('ja-JP');
 
             const html = `
-                <div class="text-center fade-enter-active">
-                    <p class="text-xs text-gray-400 font-bold tracking-widest mb-1">あなたのタイプは...</p>
-                    <h2 class="text-3xl font-black text-primary mb-1">${data.title}</h2>
-                    <p class="text-xs font-bold bg-primary text-white inline-block px-3 py-1 rounded-full mb-4 shadow-sm">${key}型</p>
-                    <p class="text-sm font-bold text-gray-700 mb-4 bg-gray-100 p-2 rounded-lg">${data.subtitle}</p>
-                    
-                    <p class="text-sm text-gray-600 mb-6 text-left leading-relaxed">${data.desc}</p>
-                    
-                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-left mb-6 relative">
-                        <div class="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-2 py-1 rounded shadow">運動処方箋</div>
-                        <p class="text-sm text-gray-800 mt-2 font-medium leading-relaxed">${data.rx}</p>
-                    </div>
+                <div class="max-w-4xl w-full m-auto">
+                    <div class="prescription-paper border border-gray-200 rounded-lg p-6 md:p-10 relative overflow-hidden text-gray-800">
+                        
+                        <div class="border-b-4 border-gray-800 pb-4 mb-6 flex justify-between items-end">
+                            <div>
+                                <h1 class="text-3xl md:text-4xl font-black tracking-widest text-gray-900">個別運動処方箋</h1>
+                                <p class="font-mono text-gray-500 text-sm mt-1">PERSONAL EXERCISE PRESCRIPTION</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-mono text-sm text-gray-600">発行日: ${dateStr}</p>
+                                <p class="font-mono text-sm text-gray-600">ID: ${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}</p>
+                            </div>
+                        </div>
 
-                    <div class="space-y-3">
-                        <a href="https://lin.ee/YOUR_LINE_LINK_HERE" target="_blank" class="block w-full bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm flex items-center justify-center">
-                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.122.303.049.775.021 1.086l-.168 1.026c-.022.138-.105.441.424.218.529-.223 2.855-1.682 5.097-3.766 2.37-2.222 3.533-4.402 3.533-8.764z"/></svg>
-                            公式LINEで詳しいメニューを受け取る
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 bg-surface p-4 rounded-lg border border-gray-200">
+                            <div><p class="text-xs text-gray-500 font-bold">年齢</p><p class="text-lg font-mono font-bold">${userProfile.age}<span class="text-sm">歳</span></p></div>
+                            <div><p class="text-xs text-gray-500 font-bold">性別</p><p class="text-lg font-bold">${userProfile.gender}</p></div>
+                            <div><p class="text-xs text-gray-500 font-bold">身長</p><p class="text-lg font-mono font-bold">${userProfile.height}<span class="text-sm">cm</span></p></div>
+                            <div><p class="text-xs text-gray-500 font-bold">体重</p><p class="text-lg font-mono font-bold">${userProfile.weight}<span class="text-sm">kg</span></p></div>
+                            <div><p class="text-xs text-gray-500 font-bold">BMI</p><p class="text-lg font-mono font-bold">${bmi}</p></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-400 mb-2 border-b border-gray-300 pb-1">■ 診断結果 (Type: ${key})</h3>
+                                <p class="text-sm font-bold text-primary mb-1">${data.subtitle}</p>
+                                <h2 class="text-3xl font-black mb-4">${data.title} 型</h2>
+                                <p class="text-sm leading-relaxed text-gray-700">${data.feature}</p>
+                            </div>
+                            <div class="space-y-4 pt-4 md:pt-0">
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1"><span class="text-gray-600">ボディ (筋骨格)</span><span class="font-mono">${scores.body}/20</span></div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-blue-600 h-2 rounded-full" style="width: ${(scores.body/20)*100}%"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1"><span class="text-gray-600">スタミナ (心肺)</span><span class="font-mono">${scores.stamina}/20</span></div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width: ${(scores.stamina/20)*100}%"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1"><span class="text-gray-600">マインド (認知)</span><span class="font-mono">${scores.mind}/20</span></div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-purple-500 h-2 rounded-full" style="width: ${(scores.mind/20)*100}%"></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 class="text-sm font-bold text-gray-400 mb-4 border-b border-gray-300 pb-1">■ 推奨される1週間の運動メニュー</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-7 gap-2 mb-8">
+                            ${Object.entries({月:'mon',火:'tue',水:'wed',木:'thu',金:'fri',土:'sat',日:'sun'}).map(([day, key]) => `
+                                <div class="border border-gray-200 rounded p-2 text-center bg-white shadow-sm">
+                                    <div class="text-xs font-bold text-gray-500 mb-1 border-b pb-1">${day}</div>
+                                    <div class="text-[11px] font-bold text-gray-800 leading-tight">${data.menu[key]}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="relative bg-blue-50 border border-blue-100 p-6 rounded-lg">
+                            <h3 class="text-sm font-bold text-primary mb-2">■ 個別アドバイス</h3>
+                            <p class="text-sm text-gray-800 leading-relaxed font-medium">${data.advice}</p>
+                            <div class="absolute bottom-4 right-4 stamp">判定済</div>
+                        </div>
+
+                    </div> <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+                        <a href="https://lin.ee/YOUR_LINE_LINK_HERE" target="_blank" class="flex-1 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-4 rounded-xl shadow-lg transition-transform hover:-translate-y-1 text-center flex items-center justify-center text-lg">
+                            <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.122.303.049.775.021 1.086l-.168 1.026c-.022.138-.105.441.424.218.529-.223 2.855-1.682 5.097-3.766 2.37-2.222 3.533-4.402 3.533-8.764z"/></svg>
+                            LINEで日々のメニューを受け取る
                         </a>
-                        <button onclick="renderStart()" class="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm">
+                        <button onclick="renderStart()" class="sm:w-1/3 bg-white border-2 border-gray-300 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-50 transition-colors">
                             最初からやり直す
                         </button>
                     </div>
+
                 </div>
             `;
-            contentDiv.innerHTML = html;
+            render(html);
         }
 
         // 初期化
