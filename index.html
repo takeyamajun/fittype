@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フィジカルMBTI診断</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Noto Sans JP"', 'sans-serif'] },
+                    colors: {
+                        primary: '#0ea5e9', // 爽やかなフィットネスブルー
+                        primaryDark: '#0284c7',
+                        secondary: '#f3f4f6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* スムーズな画面遷移のためのアニメーション */
+        .fade-enter { opacity: 0; transform: translateY(10px); }
+        .fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
+        .fade-exit { opacity: 1; transform: translateY(0); }
+        .fade-exit-active { opacity: 0; transform: translateY(-10px); transition: opacity 0.3s ease-in, transform 0.3s ease-in; }
+        
+        /* 選択ボタンのホバーエフェクト */
+        .choice-btn { transition: all 0.2s ease-in-out; }
+        .choice-btn:hover { transform: scale(1.02); border-color: #0ea5e9; background-color: #f0f9ff; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden relative min-h-[500px] flex flex-col">
+        
+        <div id="header" class="hidden w-full bg-gray-200 h-1.5 absolute top-0 left-0">
+            <div id="progress-bar" class="bg-primary h-1.5 transition-all duration-300 w-0"></div>
+        </div>
+
+        <div id="content" class="p-6 md:p-8 flex-1 flex flex-col justify-center">
+            </div>
+
+    </div>
+
+    <script>
+        // --- データ定義 ---
+        const questions = [
+            // 軸1: ボディ (筋骨格)
+            { text: "スーパーの重い買い物袋や、水・お米などを運ぶ作業は、あまり苦にならない。", axis: "body" },
+            { text: "少しの段差から飛び降りたり、小走りで踏み込んだりした際、足腰や関節に不安を感じない。", axis: "body" },
+            { text: "階段を上る際、手すりに頼らなくても、足にしっかりとした力強さを感じる。", axis: "body" },
+            { text: "日常的に乳製品や小魚・大豆製品をよく食べ、外に出て日光を浴びる習慣がある。", axis: "body" },
+            // 軸2: スタミナ (心肺)
+            { text: "少し早歩きで10分以上歩き続けても、会話ができるくらい息に余裕がある。", axis: "stamina" },
+            { text: "エスカレーターやエレベーターがあっても、意識して階段を使うことが多い。", axis: "stamina" },
+            { text: "急ぎ足や階段などで少し息が上がっても、立ち止まって休めばすぐに呼吸が整う。", axis: "stamina" },
+            { text: "休日は家でじっと休んでいるよりも、外出して動き回っている方が1日を元気に過ごせる。", axis: "stamina" },
+            // 軸3: マインド (認知)
+            { text: "「あれ、何だっけ？」と言葉に詰まることは少なく、昨日の食事や最近の出来事をすぐに思い出せる。", axis: "mind" },
+            { text: "料理をしながら片付けをするなど、2つ以上の作業を同時に進行するのが得意だ。", axis: "mind" },
+            { text: "朝起きたとき、頭にモヤモヤした感覚はなく、スッキリとすぐに1日の活動を開始できる。", axis: "mind" },
+            { text: "新しいルールのゲームをしたり、スマホの新しい使い方を覚えたりすることに抵抗がない。", axis: "mind" }
+        ];
+
+        const resultsData = {
+            "HAC": { title: "トライアスリート", subtitle: "文武両道を地で行く、タフで聡明な完全無欠タイプ", desc: "筋肉・骨・スタミナのすべてが揃い、頭脳も明晰。どんなハードな状況にも対応できる、まさに「鉄人」です。", rx: "高強度のトレーニングや、新しいスポーツへの挑戦など、攻めのフィットネスメニュー。" },
+            "HAN": { title: "ラグビーフォワード", subtitle: "スタミナとパワーで突き進む、タフで豪快な切り込み隊長", desc: "体力と突進力は群を抜いていますが、細かいことは気にしないおっとり・のんびりした気質を持ち合わせています。", rx: "複雑なステップ運動や脳トレ要素を掛け合わせた、飽きずに楽しめるアクティビティ。" },
+            "HRC": { title: "スプリンター", subtitle: "一瞬の爆発力と鋭い戦術で魅せる、短期集中パワー型", desc: "筋肉の出力が高く頭の回転も速いですが、持久力（スタミナ）は長続きしにくいため、短時間で勝負をかけるタイプです。", rx: "長時間のランニングよりも、短時間のインターバルトレーニングやウエイトスタディ。" },
+            "HRN": { title: "ウエイトリフター", subtitle: "どっしりとした安定感、無理せず一撃にかける省エネパワー", desc: "骨格や筋力は頑丈ですが、ゼーゼー息が上がるような運動は苦手。普段は穏やかでマイペースな省エネモードです。", rx: "激しい運動は避け、ラジオ体操や散歩など、まずは身体をじんわり温める習慣から。" },
+            "SAC": { title: "ミッドフィルダー", subtitle: "身軽な体と抜群のスタミナで、スマートに立ち回る司令塔", desc: "体型は華奢ですが、スタミナが抜群にあり、広い視野とフットワークの軽さでゲームを支配するタイプです。", rx: "自重スクワットなどの筋力・骨量を補うトレーニングを取り入れ、身体の土台を強化。" },
+            "SAN": { title: "ダンサー", subtitle: "フットワークは軽く動き回る、リズム感抜群のリフレッシュ派", desc: "筋力は控えめですが、スタミナがあり動くことが大好き。音楽や楽しさに合わせてのびのびと身体を動かすのが得意です。", rx: "音楽に合わせたダンスやヨガなど、リフレッシュと体力維持を両立できる運動。" },
+            "SRC": { title: "ゴルファー", subtitle: "体力勝負は避けて勝つ、緻密な計算と集中力の精密機械", desc: "筋力やスタミナに頼るより、冷静な分析力と高い集中力で効率よく身体をコントロールする知性派です。", rx: "隙間時間のリフレッシュストレッチや、効率を重視した「1回5分のプチ筋トレ」。" },
+            "SRN": { title: "ウォーカー", subtitle: "自分の心地よさを最優先にする、無理のない脱力系ビギナー", desc: "激しいスポーツや筋トレは苦手。お散歩感覚でゆったり心地よく身体を動かすのが一番合っているマイペース派です。", rx: "まずは「運動」と構えず、湯船に浸かる、ストレッチをするなど、超低負荷な習慣からスタート。" }
+        };
+
+        // --- 状態管理 ---
+        let currentQuestion = 0;
+        let scores = { body: 0, stamina: 0, mind: 0 };
+
+        const contentDiv = document.getElementById('content');
+        const headerDiv = document.getElementById('header');
+        const progressBar = document.getElementById('progress-bar');
+
+        // --- 画面遷移ロジック ---
+        function transitionContent(newHTML, callback) {
+            contentDiv.classList.add('fade-exit-active');
+            setTimeout(() => {
+                contentDiv.innerHTML = newHTML;
+                contentDiv.classList.remove('fade-exit-active');
+                contentDiv.classList.add('fade-enter-active');
+                if(callback) callback();
+                setTimeout(() => {
+                    contentDiv.classList.remove('fade-enter-active');
+                }, 400);
+            }, 300);
+        }
+
+        // --- スタート画面 ---
+        function renderStart() {
+            headerDiv.classList.add('hidden');
+            const html = `
+                <div class="text-center">
+                    <p class="text-sm text-primary font-bold tracking-widest mb-2">フィジカル × マインド</p>
+                    <h1 class="text-3xl font-black text-gray-900 mb-4 leading-tight">フィジカルMBTI<br>診断</h1>
+                    <p class="text-gray-500 mb-8 text-sm leading-relaxed">12個の質問から、あなたの「筋骨格・心肺・認知機能」を分析し、8つのタイプに分類します。あなたにぴったりの運動処方箋を見つけましょう！</p>
+                    <button onclick="startQuiz()" class="w-full bg-primary hover:bg-primaryDark text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg">
+                        診断をスタート
+                    </button>
+                </div>
+            `;
+            transitionContent(html);
+        }
+
+        // --- クイズ画面 ---
+        function startQuiz() {
+            currentQuestion = 0;
+            scores = { body: 0, stamina: 0, mind: 0 };
+            headerDiv.classList.remove('hidden');
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            const q = questions[currentQuestion];
+            const progress = ((currentQuestion) / questions.length) * 100;
+            progressBar.style.width = `${progress}%`;
+
+            const html = `
+                <div>
+                    <p class="text-sm text-primary font-bold mb-2">Q${currentQuestion + 1} / ${questions.length}</p>
+                    <h2 class="text-xl font-bold text-gray-800 mb-6 leading-relaxed">${q.text}</h2>
+                    <div class="space-y-3">
+                        ${[5, 4, 3, 2, 1].map(val => `
+                            <button onclick="answerQuestion(${val}, '${q.axis}')" class="choice-btn w-full text-left px-5 py-4 border border-gray-200 rounded-xl text-gray-700 font-medium bg-white shadow-sm flex items-center justify-between">
+                                <span>${getAnswerText(val)}</span>
+                                <span class="text-gray-300 text-xs">${val}点</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            transitionContent(html);
+        }
+
+        function getAnswerText(val) {
+            switch(val) {
+                case 5: return "非常に当てはまる";
+                case 4: return "やや当てはまる";
+                case 3: return "どちらともいえない";
+                case 2: return "あまり当てはまらない";
+                case 1: return "全く当てはまらない";
+            }
+        }
+
+        function answerQuestion(val, axis) {
+            scores[axis] += val;
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                renderQuestion();
+            } else {
+                progressBar.style.width = '100%';
+                setTimeout(calculateResult, 400); // プログレスバーが満ちるのを待つ
+            }
+        }
+
+        // --- 結果計算・表示画面 ---
+        function calculateResult() {
+            // 各軸4問 (満点20点)。12点以上を上位特性とする。
+            const bodyType = scores.body >= 12 ? 'H' : 'S';
+            const staminaType = scores.stamina >= 12 ? 'A' : 'R';
+            const mindType = scores.mind >= 12 ? 'C' : 'N';
+            
+            const resultKey = `${bodyType}${staminaType}${mindType}`;
+            renderResult(resultKey);
+        }
+
+        function renderResult(key) {
+            headerDiv.classList.add('hidden');
+            const data = resultsData[key];
+
+            const html = `
+                <div class="text-center fade-enter-active">
+                    <p class="text-xs text-gray-400 font-bold tracking-widest mb-1">あなたのタイプは...</p>
+                    <h2 class="text-3xl font-black text-primary mb-1">${data.title}</h2>
+                    <p class="text-xs font-bold bg-primary text-white inline-block px-3 py-1 rounded-full mb-4 shadow-sm">${key}型</p>
+                    <p class="text-sm font-bold text-gray-700 mb-4 bg-gray-100 p-2 rounded-lg">${data.subtitle}</p>
+                    
+                    <p class="text-sm text-gray-600 mb-6 text-left leading-relaxed">${data.desc}</p>
+                    
+                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-left mb-6 relative">
+                        <div class="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-2 py-1 rounded shadow">運動処方箋</div>
+                        <p class="text-sm text-gray-800 mt-2 font-medium leading-relaxed">${data.rx}</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <a href="https://lin.ee/YOUR_LINE_LINK_HERE" target="_blank" class="block w-full bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.122.303.049.775.021 1.086l-.168 1.026c-.022.138-.105.441.424.218.529-.223 2.855-1.682 5.097-3.766 2.37-2.222 3.533-4.402 3.533-8.764z"/></svg>
+                            公式LINEで詳しいメニューを受け取る
+                        </a>
+                        <button onclick="renderStart()" class="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm">
+                            最初からやり直す
+                        </button>
+                    </div>
+                </div>
+            `;
+            contentDiv.innerHTML = html;
+        }
+
+        // 初期化
+        renderStart();
+    </script>
+</body>
+</html>
